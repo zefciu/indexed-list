@@ -7,7 +7,6 @@ class Index():
     def __init__(self):
         """Set the name."""
         self._name = None
-        self._dict = {}
         super(Index, self).__init__()
 
     def bind_name(self, name):
@@ -42,6 +41,26 @@ class BoundIndex(Mapping):
     def __init__(self, index, list_):
         self._index = index
         self._list = list
+        self._dict = {}
+
+    def __getattr__(self, key):
+        # Return the attribute from the index. If it is a descriptor - rebind
+        # it to the BoundIndex
+        classattr = getattr(type(self._index), key, None)
+        if classattr is not None:
+            is_descriptor = hasattr(classattr, '__get__')
+            is_datadescriptor = is_descriptor and hasattr(classattr, '__set__')
+        else:
+            is_descriptor = is_datadescriptor = False
+        if is_datadescriptor:
+            return classattr.__get__(self, type(self))
+        try:
+            return self._index.__dict__[key]
+        except KeyError:
+            if is_descriptor:
+                return classattr.__get__(self, type(self))
+            raise AttributeError('Index has no attribute {0}'.format(key))
+
 
     def __getitem__(self, key):
         return self._dict[key]
@@ -51,15 +70,6 @@ class BoundIndex(Mapping):
 
     def __iter__(self):
         return iter(self._dict)
-
-    def prepare_add(self, item):
-        self._index.prepare_add(item)
-
-    def add(self, item):
-        self._index.add(item)
-
-    def remove(self, item):
-        self._index.remove(item)
 
 
 class UniqueIndex(Index):
@@ -120,7 +130,9 @@ class IndexedList(MutableSequence, metaclass = IndexedListMeta):
         self._list = []
         self._indexes = {}
         for name, index in type(self)._indexes.items():
-            self._indexes[name] = BoundIndex(index, self)
+            bound_index = BoundIndex(index, self)
+            self._indexes[name] = bound_index
+            setattr(self, name, bound_index)
         super(IndexedList, self).__init__()
 
     def __len__(self):
@@ -157,12 +169,3 @@ class IndexedList(MutableSequence, metaclass = IndexedListMeta):
     def __delitem__(self, i):
         self.remove_from_indexes(self._list[i])
         del self._list[i]
-
-
-if __name__ == '__main__':
-    class ListPeople(IndexedList):
-        name = UniqueKeyIndex()
-        surname = UniqueKeyIndex()
-
-    l = ListPeople()
-    l.append({'name': 'Szymon', 'surname': 'Pyżalski'})
