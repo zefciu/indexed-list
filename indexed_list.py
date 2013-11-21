@@ -34,6 +34,10 @@ class Index():
     def remove(self, item):
         """Remove an item to this index."""
 
+    def process_result(self, result):
+        """Process the dict_ item to be returned"""
+        return result
+
 
 class BoundIndex(Mapping):
     """An index bound to a list instance."""
@@ -93,17 +97,21 @@ class UniqueIndex(Index):
 class MultiIndex(Index):
     """An index that enables multiple values and returns a list."""
 
-    def prepare_add(self, item):
+    def prepare_add(self, item, skip=None):
         return True
 
     def add(self, item):
         key = self.process_item(item)
-        self.dict_.setdefault(key, [])
-        self.dict_[key].append(item)
+        self._dict.setdefault(key, [])
+        self._dict[key].append(item)
 
     def remove(self, item):
         key = self.process_item(item)
-        self.dict_[key].remove(item)
+        self._dict[key].remove(item)
+
+    def process_result(self, result):
+        # We create iterator to prevent accidental modification
+        return iter(result)
 
 class IndexedListMeta(abc.ABCMeta):
     """Metaclass for indexed lists."""
@@ -120,12 +128,20 @@ class IndexedListMeta(abc.ABCMeta):
 class KeyIndex(Index):
     """Index that accesses a key of an object"""
 
+    def __init__(self, default=None, *args, **kwargs):
+        self.default = default
+        super(KeyIndex, self).__init__(*args, **kwargs)
+
     def process_item(self, item):
+        if self.default is not None:
+            return item.get(self._name, self.default)
         return item[self._name]
 
 class UniqueKeyIndex(UniqueIndex, KeyIndex):
     """Unique index by dictionary key."""
 
+class MultiKeyIndex(MultiIndex, KeyIndex):
+    """Unique index by dictionary key."""
 
 class IndexedList(MutableSequence, metaclass = IndexedListMeta):
 

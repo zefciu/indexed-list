@@ -1,10 +1,11 @@
 import unittest
-from indexed_list import IndexedList, UniqueKeyIndex
+from indexed_list import IndexedList, UniqueKeyIndex, MultiKeyIndex
 
 class KnightList(IndexedList):
     """A knight"""
     name = UniqueKeyIndex()
     nickname = UniqueKeyIndex()
+    brave = MultiKeyIndex(default=True)
 
 class TestBadSemantics(unittest.TestCase):
     """Catch some bad practices."""
@@ -110,5 +111,25 @@ class TestKeyIndexes(unittest.TestCase):
         """We can't violate unique index."""
         with self.assertRaises(ValueError):
             self.list_.append({'name': 'Galahad', 'nickname': 'The Dirty'})
-        # Check if nothing is broken
         self.assertUnchanged()
+
+
+class TestMultiIndexes(unittest.TestCase):
+
+    def setUp(self):
+        self.list_ = KnightList()
+        self.list_.append(
+            {'name': 'Galahad', 'nickname': 'The Pure', 'brave': True}
+        )
+        self.list_.append(
+            {'name': 'Bedevere', 'nickname': 'The Wise', 'brave': True}
+        )
+        self.list_.append(
+            {'name': 'Robin', 'nickname': 'The Not So Brave', 'brave': False}
+        )
+
+    def test_indexes(self):
+        self.assertSetEqual(
+            {knight['name'] for knight in self.list_.brave[True]},
+            {'Galahad', 'Bedevere'},
+        )
