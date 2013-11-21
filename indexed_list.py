@@ -40,7 +40,7 @@ class BoundIndex(Mapping):
 
     def __init__(self, index, list_):
         self._index = index
-        self._list = list
+        self._list = list_
         self._dict = {}
 
     def __getattr__(self, key):
@@ -75,8 +75,11 @@ class BoundIndex(Mapping):
 class UniqueIndex(Index):
     """An index that ensures unique values."""
 
-    def prepare_add(self, item):
-        if self.process_item(item) in self._dict:
+    def prepare_add(self, item, skip=None):
+        processed = self.process_item(item)
+        if processed in self._dict:
+            if self._list.index(self._dict[processed]) == skip:
+                return
             raise ValueError('Value {0} already in index {1}.'.format(
                 self.process_item(item), self._name
             ))
@@ -142,16 +145,16 @@ class IndexedList(MutableSequence, metaclass = IndexedListMeta):
         return self._list[i]
 
     def __setitem__(self, i, value):
-        self.check(value)
+        self.check(value, skip=i)
         if i >= len(self._list):
             raise IndexError('list assignment index out of range')
         self.remove_from_indexes(self._list[i])
         self.add_to_indexes(value)
         self._list[i] = value
 
-    def check(self, value):
+    def check(self, value, skip=None):
         for index in self._indexes.values():
-            index.prepare_add(value)
+            index.prepare_add(value, skip)
 
     def add_to_indexes(self, value):
         for index in self._indexes.values():
