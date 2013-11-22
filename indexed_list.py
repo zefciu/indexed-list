@@ -1,7 +1,11 @@
+"""
+The indexed list module contains all definitions needed to
+use IndexedList and Table
+"""
 import abc
 from collections.abc import MutableSequence, Mapping
 
-class Index():
+class Index(object):
     """An abstract index on an IndexedList."""
 
     def __init__(self):
@@ -23,7 +27,7 @@ class Index():
         """The method to process the list item in order to get index key."""
 
     @abc.abstractmethod
-    def prepare_add(self, item):
+    def prepare_add(self, item, skip=None):
         """Raise exception if an item can't be added to this index."""
 
     @abc.abstractmethod
@@ -117,12 +121,12 @@ class IndexedListMeta(abc.ABCMeta):
     """Metaclass for indexed lists."""
 
     def __init__(cls, clsname, bases, dict_):
-        cls._indexes = {}
+        cls.indexes = {}
         for name, index in dict_.items():
             if not isinstance(index, Index):
                 continue
             index.bind_name(name)
-            cls._indexes[name] = index
+            cls.indexes[name] = index
         super(IndexedListMeta, cls).__init__(clsname, bases, dict_)
 
 class KeyIndex(Index):
@@ -144,13 +148,14 @@ class MultiKeyIndex(MultiIndex, KeyIndex):
     """Unique index by dictionary key."""
 
 class IndexedList(MutableSequence, metaclass = IndexedListMeta):
+    """A list that supports docstrings."""
 
     def __init__(self):
         self._list = []
-        self._indexes = {}
-        for name, index in type(self)._indexes.items():
+        self.indexes = {}
+        for name, index in type(self).indexes.items():
             bound_index = BoundIndex(index, self)
-            self._indexes[name] = bound_index
+            self.indexes[name] = bound_index
             setattr(self, name, bound_index)
         super(IndexedList, self).__init__()
 
@@ -161,30 +166,34 @@ class IndexedList(MutableSequence, metaclass = IndexedListMeta):
         return self._list[i]
 
     def __setitem__(self, i, value):
-        self.check(value, skip=i)
+        self._check(value, skip=i)
         if i >= len(self._list):
             raise IndexError('list assignment index out of range')
-        self.remove_from_indexes(self._list[i])
-        self.add_to_indexes(value)
+        self._remove_from_indexes(self._list[i])
+        self._add_to_indexes(value)
         self._list[i] = value
 
-    def check(self, value, skip=None):
-        for index in self._indexes.values():
+    def _check(self, value, skip=None):
+        """Check if value can be added to an index."""
+        for index in self.indexes.values():
             index.prepare_add(value, skip)
 
-    def add_to_indexes(self, value):
-        for index in self._indexes.values():
+    def _add_to_indexes(self, value):
+        """Add value to all indexes."""
+        for index in self.indexes.values():
             index.add(value)
 
-    def remove_from_indexes(self, value):
-        for index in self._indexes.values():
+    def _remove_from_indexes(self, value):
+        """Remove value from all indexes."""
+        for index in self.indexes.values():
             index.remove(value)
 
     def insert(self, i, value):
-        self.check(value)
-        self.add_to_indexes(value)
+        """Insert value at given index."""
+        self._check(value)
+        self._add_to_indexes(value)
         self._list.insert(i, value)
 
     def __delitem__(self, i):
-        self.remove_from_indexes(self._list[i])
+        self._remove_from_indexes(self._list[i])
         del self._list[i]
