@@ -1,5 +1,6 @@
 import unittest
 from indexed_list import IndexedList, UniqueKeyIndex, MultiKeyIndex
+from indexed_list import Table, UniqueColumn, MultiColumn
 
 class KnightList(IndexedList):
     """A knight"""
@@ -133,3 +134,22 @@ class TestMultiIndexes(unittest.TestCase):
             {knight['name'] for knight in self.list_.brave[True]},
             {'Galahad', 'Bedevere'},
         )
+
+class KnightTable(Table):
+    name = UniqueColumn()
+    nickname = MultiColumn()
+
+
+class TestTable(unittest.TestCase):
+    """Tests for Table object"""
+
+    def setUp(self):
+        self.table = KnightTable()
+        self.table.append(('Galahad', 'The Pure'))
+        self.table.append(('Robin', 'The Brave'))
+        self.table.append(('Bedevere', 'The Wise'))
+        self.table.append(('Lancelot', 'The Brave'))
+
+    def test_get(self):
+        """We get nice namedtuples."""
+        self.assertEqual(self.table[1].name, 'Robin')

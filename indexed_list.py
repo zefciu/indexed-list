@@ -3,6 +3,9 @@ The indexed list module contains all definitions needed to
 use IndexedList and Table
 """
 import abc
+import csv
+import io
+from collections import namedtuple, OrderedDict
 from collections.abc import MutableSequence, Mapping
 
 class Index(object):
@@ -10,17 +13,17 @@ class Index(object):
 
     def __init__(self):
         """Set the name."""
-        self._name = None
+        self.name = None
         super(Index, self).__init__()
 
     def bind_name(self, name):
         """Set the name."""
-        if self._name is not None:
+        if self.name is not None:
             # Shouldn't happen if using recommended semantics
             raise ValueError(
                 'Trying to set the same index object on two lists'
             )
-        self._name = name
+        self.name = name
 
     @abc.abstractmethod
     def process_item(self, item):
@@ -89,7 +92,7 @@ class UniqueIndex(Index):
             if self._list.index(self._dict[processed]) == skip:
                 return
             raise ValueError('Value {0} already in index {1}.'.format(
-                self.process_item(item), self._name
+                self.process_item(item), self.name
             ))
 
     def add(self, item):
@@ -138,8 +141,8 @@ class KeyIndex(Index):
 
     def process_item(self, item):
         if self.default is not None:
-            return item.get(self._name, self.default)
-        return item[self._name]
+            return item.get(self.name, self.default)
+        return item[self.name]
 
 class UniqueKeyIndex(UniqueIndex, KeyIndex):
     """Unique index by dictionary key."""
@@ -197,3 +200,87 @@ class IndexedList(MutableSequence, metaclass = IndexedListMeta):
     def __delitem__(self, i):
         self._remove_from_indexes(self._list[i])
         del self._list[i]
+
+class AttributeIndex(Index):
+    """An attribute index indexes objects by an attribute or a group of them.
+    The name of the attribute defaults to the name of index. However it can be
+    changed by specyfying one or more positional arguments.
+    """
+
+    def __init__(self, *args, **kwargs):
+        if args:
+            self._names = args
+        else:
+            self._names = None
+        super(AttributeIndex, self).__init__(**kwargs)
+
+    @property
+    def names(self):
+        return self._names or [self.name]
+        
+
+    def process_item(self, item):
+        result = []
+        for name in self.names:
+            result.append(getattr(item, name))
+        if len(result) == 1:
+            return result[0]
+        else:
+            return tuple(result)
+
+class UniqueAttributeIndex(UniqueIndex, AttributeIndex):
+    """Unique index on Attribute."""
+
+class Column(AttributeIndex):
+    """A column."""
+
+    def __init__(self, *args, **kwargs):
+        if len(args) > 1:
+            raise TypeError('A column can have only one name')
+        super(Column, self).__init__(*args, **kwargs)
+
+class UniqueColumn(UniqueIndex, Column):
+    """A column with unique index."""
+
+class MultiColumn(MultiIndex, Column):
+    """A column without unique constaint."""
+
+
+class TableMeta(IndexedListMeta):
+    """Metaclass for Table."""
+
+    def __init__(cls, clsname, bases, dict_):
+        super(TableMeta, cls).__init__(clsname, bases, dict_)
+        cls.columns = []
+        cls.names = []
+        for k, v in dict_.items():
+            if isinstance(v, Column):
+                cls.columns.append(v)
+                cls.names.append(v.name)
+        cls.TupleClass = namedtuple(clsname, cls.names)
+
+    def __prepare__(cls, clsname):
+        return OrderedDict()
+
+class Table(IndexedList, metaclass=TableMeta):
+    """A table. Special case IndexedList that stores named tuples."""
+
+    def __init__(self, dialect='excel'):
+        self.dialect = dialect
+        super(Table, self).__init__()
+
+    def __setitem__(self, i, value):
+        value = self.TupleClass._make(value)
+        super(Table, self).__setitem__(i, value)
+
+    def insert(self, i, value):
+        value = self.TupleClass._make(value)
+        super(Table, self).insert(i, value)
+
+    def __str__(self):
+        self.writer.write(self.names)
+        string_io = io.StringIO()
+        writer = csv.Writer(self.string_io, dialect=self.dialect)
+        for row in self:
+            writer.write(row)
+        return string_io.getvalue()
