@@ -1,6 +1,6 @@
 import unittest
 from indexed_list import IndexedList, UniqueKeyIndex, MultiKeyIndex
-from indexed_list import Table, UniqueColumn, MultiColumn
+from indexed_list import Table, UniqueColumn, MultiColumn, UniqueAttributeIndex
 
 class KnightList(IndexedList):
     """A knight"""
@@ -16,6 +16,12 @@ class TestBadSemantics(unittest.TestCase):
         with self.assertRaises(ValueError):
             class PeasantList(IndexedList):
                 name = KnightList.name
+
+    def test_column_with_two_names(self):
+        """Trying to create a column with several names."""
+        with self.assertRaises(TypeError):
+            class KnightTable(Table):
+                name_surname = UniqueColumn('name', 'Surname')
 
 class TestBoundField(unittest.TestCase):
     """Bound field magic"""
@@ -138,6 +144,7 @@ class TestMultiIndexes(unittest.TestCase):
 class KnightTable(Table):
     name = UniqueColumn()
     nickname = MultiColumn()
+    name_nickname = UniqueAttributeIndex('name', 'nickname')
 
 
 class TestTable(unittest.TestCase):
@@ -151,5 +158,30 @@ class TestTable(unittest.TestCase):
         self.table.append(('Lancelot', 'The Brave'))
 
     def test_get(self):
-        """We get nice namedtuples."""
+        """Get nice namedtuples."""
         self.assertEqual(self.table[1].name, 'Robin')
+
+    def test_get_by_index(self):
+        """Access item by multicolumn index."""
+        self.assertEqual(
+            self.table.name_nickname[('Robin', 'The Brave')].name,
+            'Robin',
+        )
+
+    def test_setitem(self):
+        """Setting an item."""
+        self.table[1] = ('Robin', 'Not So Brave')
+        self.assertEqual(
+            self.table.nickname['Not So Brave'][0].name,
+            'Robin',
+        )
+
+    def test_serialize(self):
+        self.assertEqual(
+            str(self.table),
+            """name,nickname\r
+Galahad,The Pure\r
+Robin,The Brave\r
+Bedevere,The Wise\r
+Lancelot,The Brave\r
+""")

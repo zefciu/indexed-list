@@ -278,9 +278,8 @@ class Table(IndexedList, metaclass=TableMeta):
         super(Table, self).insert(i, value)
 
     def __str__(self):
-        self.writer.write(self.names)
         string_io = io.StringIO()
-        writer = csv.Writer(self.string_io, dialect=self.dialect)
-        for row in self:
-            writer.write(row)
+        writer = csv.writer(string_io, dialect=self.dialect)
+        writer.writerow(self.names)
+        writer.writerows(self)
         return string_io.getvalue()
