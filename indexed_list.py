@@ -11,9 +11,11 @@ from collections.abc import MutableSequence, Mapping
 class Index(object):
     """An abstract index on an IndexedList."""
 
-    def __init__(self):
+    def __init__(self, allow_none = True, drop_none = True):
         """Set the name."""
         self.name = None
+        self.allow_none = allow_none
+        self.drop_none = drop_none
         super(Index, self).__init__()
 
     def bind_name(self, name):
@@ -25,6 +27,10 @@ class Index(object):
             )
         self.name = name
 
+    def should_drop(self, value):
+        """Return true if a value should be dropped"""
+        return value is None and self.drop_none
+
     @abc.abstractmethod
     def process_item(self, item):
         """The method to process the list item in order to get index key."""
@@ -32,6 +38,8 @@ class Index(object):
     @abc.abstractmethod
     def prepare_add(self, item, skip=None):
         """Raise exception if an item can't be added to this index."""
+        if item is None and not self.allow_none:
+            raise ValueError('None value not allowed for key ' + self.name)
 
     @abc.abstractmethod
     def add(self, item):
@@ -88,6 +96,8 @@ class UniqueIndex(Index):
 
     def prepare_add(self, item, skip=None):
         processed = self.process_item(item)
+        if self.should_drop(processed):
+            return
         if processed in self._dict:
             if self._list.index(self._dict[processed]) == skip:
                 return
@@ -96,7 +106,9 @@ class UniqueIndex(Index):
             ))
 
     def add(self, item):
-        self._dict[self.process_item(item)] = item
+        processed = self.process_item(item)
+        if not self.should_drop(processed):
+            self._dict[self.process_item(item)] = item
 
     def remove(self, item):
         del self._dict[self.process_item(item)]
@@ -179,12 +191,14 @@ class IndexedList(MutableSequence, metaclass = IndexedListMeta):
     def _check(self, value, skip=None):
         """Check if value can be added to an index."""
         for index in self.indexes.values():
-            index.prepare_add(value, skip)
+            if not index.should_drop(value):
+                index.prepare_add(value, skip)
 
     def _add_to_indexes(self, value):
         """Add value to all indexes."""
         for index in self.indexes.values():
-            index.add(value)
+            if not index.should_drop(value):
+                index.add(value)
 
     def _remove_from_indexes(self, value):
         """Remove value from all indexes."""
@@ -231,13 +245,30 @@ class AttributeIndex(Index):
 class UniqueAttributeIndex(UniqueIndex, AttributeIndex):
     """Unique index on Attribute."""
 
-class Column(AttributeIndex):
-    """A column."""
+
+class BaseColumn(Index):
+    """A base for all indexed and unindexed columns."""
 
     def __init__(self, *args, **kwargs):
         if len(args) > 1:
             raise TypeError('A column can have only one name')
-        super(Column, self).__init__(*args, **kwargs)
+        super(BaseColumn, self).__init__(*args, **kwargs)
+
+
+class Column(BaseColumn, AttributeIndex):
+    """A column with index."""
+
+class Unindexed(BaseColumn):
+    """An unindexed column."""
+
+    def prepare_add(self, value, skip):
+        pass
+
+    def add(self, value):
+        pass
+
+    def remove(self, item):
+        pass
 
 class UniqueColumn(UniqueIndex, Column):
     """A column with unique index."""
@@ -254,7 +285,7 @@ class TableMeta(IndexedListMeta):
         cls.columns = []
         cls.names = []
         for k, v in dict_.items():
-            if isinstance(v, Column):
+            if isinstance(v, BaseColumn):
                 cls.columns.append(v)
                 cls.names.append(v.name)
         cls.TupleClass = namedtuple(clsname, cls.names)

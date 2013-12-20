@@ -1,6 +1,7 @@
 import unittest
 from indexed_list import IndexedList, UniqueKeyIndex, MultiKeyIndex
 from indexed_list import Table, UniqueColumn, MultiColumn, UniqueAttributeIndex
+from indexed_list import Unindexed
 
 class KnightList(IndexedList):
     """A knight"""
@@ -168,6 +169,11 @@ class TestTable(unittest.TestCase):
             'Robin',
         )
 
+    def test_drop_none(self):
+        """Check if values with None can be added non-uniqueli."""
+        self.table.append((None, 'The Strong'))
+        self.table.append((None, 'The Weak'))
+
     def test_setitem(self):
         """Setting an item."""
         self.table[1] = ('Robin', 'Not So Brave')
@@ -185,3 +191,35 @@ Robin,The Brave\r
 Bedevere,The Wise\r
 Lancelot,The Brave\r
 """)
+
+class KnightsWithDict(Table):
+    """A sample table with Unindexed column."""
+    name = UniqueColumn()
+    nickname = MultiColumn()
+    quotes = Unindexed()
+    name_nickname = UniqueAttributeIndex('name', 'nickname')
+
+class TestTableWithUnindexed(unittest.TestCase):
+    """Test the table that contains unindexed field."""
+
+    def setUp(self):
+        self.table = KnightsWithDict()
+        self.table.append(('Galahad', 'The Pure', [
+            'Oh, let me have just a bit of peril',
+        ]))
+        self.table.append(('Robin', 'The Brave', []))
+        self.table.append(('Bedevere', 'The Wise', [
+            'And that my liege is how we know the Earth to be banana shaped',
+        ]))
+        self.table.append(('Lancelot', 'The Brave', []))
+
+    def test_get(self):
+        """Get nice namedtuples."""
+        self.assertEqual(self.table[1].name, 'Robin')
+
+    def test_get_by_index(self):
+        """Access item by multicolumn index."""
+        self.assertListEqual(
+            self.table.name_nickname[('Bedevere', 'The Wise')].quotes,
+            ['And that my liege is how we know the Earth to be banana shaped'],
+        )
