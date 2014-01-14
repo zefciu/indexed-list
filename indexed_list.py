@@ -18,6 +18,8 @@ class Index(object):
         self.drop_none = drop_none
         super(Index, self).__init__()
 
+    on_empty = None
+
     def bind_name(self, name):
         """Set the name."""
         if self.name is not None:
@@ -65,12 +67,14 @@ class BoundIndex(Mapping):
     def __getattr__(self, key):
         # Return the attribute from the index. If it is a descriptor - rebind
         # it to the BoundIndex
-        classattr = getattr(type(self._index), key, None)
-        if classattr is not None:
+        try:
+            classattr = getattr(type(self._index), key)
+        except AttributeError:
+            on_class = is_descriptor = is_datadescriptor = False
+        else:
+            on_class = True
             is_descriptor = hasattr(classattr, '__get__')
             is_datadescriptor = is_descriptor and hasattr(classattr, '__set__')
-        else:
-            is_descriptor = is_datadescriptor = False
         if is_datadescriptor:
             return classattr.__get__(self, type(self))
         try:
@@ -78,10 +82,14 @@ class BoundIndex(Mapping):
         except KeyError:
             if is_descriptor:
                 return classattr.__get__(self, type(self))
+            elif on_class:
+                return classattr
             raise AttributeError('Index has no attribute {0}'.format(key))
 
 
     def __getitem__(self, key):
+        if self.on_empty:
+            return self._dict.get(key, self.on_empty())
         return self._dict[key]
 
     def __len__(self):
@@ -115,6 +123,9 @@ class UniqueIndex(Index):
 
 class MultiIndex(Index):
     """An index that enables multiple values and returns a list."""
+
+    def on_empty(self):
+        return []
 
     def prepare_add(self, item, skip=None):
         return True
@@ -245,6 +256,8 @@ class AttributeIndex(Index):
 class UniqueAttributeIndex(UniqueIndex, AttributeIndex):
     """Unique index on Attribute."""
 
+class MultiAttributeIndex(MultiIndex, AttributeIndex):
+    """Multiple index on Attribute."""
 
 class BaseColumn(Index):
     """A base for all indexed and unindexed columns."""

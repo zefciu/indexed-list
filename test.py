@@ -141,6 +141,7 @@ class TestMultiIndexes(unittest.TestCase):
             {knight['name'] for knight in self.list_.brave[True]},
             {'Galahad', 'Bedevere'},
         )
+        self.assertListEqual(self.list_.brave[None], [])
 
 class KnightTable(Table):
     name = UniqueColumn()
