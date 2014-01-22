@@ -119,6 +119,9 @@ class UniqueIndex(Index):
             self._dict[self.process_item(item)] = item
 
     def remove(self, item):
+        processed = self.process_item(item)
+        if self.should_drop(processed):
+            return
         del self._dict[self.process_item(item)]
 
 class MultiIndex(Index):

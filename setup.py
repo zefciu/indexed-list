@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='indexed-list',
-    version='0.2.0',
+    version='0.3.0',
     author='Szymon Pyżalski',
     author_email='szymon@pythonista.net',
     py_modules=['indexed_list'],
